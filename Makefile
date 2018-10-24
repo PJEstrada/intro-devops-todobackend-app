@@ -1,6 +1,6 @@
 # Project variables
 PROJECT_NAME ?= todobackend
-ORG_NAME ?= jmenga
+ORG_NAME ?= pjestrada
 REPO_NAME ?= todobackend
 
 # Filenames
@@ -12,6 +12,7 @@ REL_PROJECT := $(PROJECT_NAME)$(BUILD_ID)
 DEV_PROJECT := $(REL_PROJECT)dev
 
 # Application Service Name - must match Docker Compose release specification application service name
+# referencia el servicio de docker compose donde esta corriendo django, en este caso se llama app.
 APP_SERVICE_NAME := app
 
 # Build tag expression - can be used to evaulate a shell expression at runtime
@@ -24,6 +25,10 @@ BUILD_EXPRESSION := $(shell $(BUILD_TAG_EXPRESSION))
 BUILD_TAG ?= $(BUILD_EXPRESSION)
 
 # Check and Inspect Logic
+# $$1 ++> nombre del proyecto
+# $$2  ==> Docker compose file
+# $$3 ==> nombre del servicio de docker.
+# Ejemplo: docker inspect -f "{{ .State.ExitCode }}" 64789548
 INSPECT := $$(docker-compose -p $$1 -f $$2 ps -q $$3 | xargs -I ARGS docker inspect -f "{{ .State.ExitCode }}" ARGS)
 
 CHECK := @bash -c '\
@@ -93,6 +98,9 @@ clean:
 	@ docker images -q -f dangling=true -f label=application=$(REPO_NAME) | xargs -I ARGS docker rmi -f ARGS
 	${INFO} "Clean complete"
 
+# Foreach primer parametro ($TAG_ARGS) es el conjunto de elementos, el segungo es la accion a realizar.
+# La variable del elemento se llama tag en este caso.
+# Para cada tag en el arg TAG_ARGS ejecute el comando docker tag con el valor de IMAGE_ID, REGISTRY, ORG_NAME:nombreDelTagActual
 tag: 
 	${INFO} "Tagging release image with tags $(TAG_ARGS)..."
 	@ $(foreach tag,$(TAG_ARGS), docker tag $(IMAGE_ID) $(DOCKER_REGISTRY)/$(ORG_NAME)/$(REPO_NAME):$(tag);)
@@ -105,7 +113,7 @@ buildtag:
 
 login:
 	${INFO} "Logging in to Docker registry $$DOCKER_REGISTRY..."
-	@ docker login -u $$DOCKER_USER -p $$DOCKER_PASSWORD -e $$DOCKER_EMAIL $(DOCKER_REGISTRY_AUTH)
+	@ docker login -u $$DOCKER_USER -p $$DOCKER_PASSWORD $(DOCKER_REGISTRY_AUTH)
 	${INFO} "Logged in to Docker registry $$DOCKER_REGISTRY"
 
 logout:
@@ -145,6 +153,7 @@ endif
 REPO_EXPR := $$(docker inspect -f '{{range .RepoTags}}{{.}} {{end}}' $(IMAGE_ID) | grep -oh "$(REPO_FILTER)" | xargs)
 
 # Extract build tag arguments
+# MAKECMDGOALS Contiene cada uno de los argumentos dados al comando make
 ifeq (buildtag,$(firstword $(MAKECMDGOALS)))
 	BUILDTAG_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   ifeq ($(BUILDTAG_ARGS),)
@@ -152,8 +161,11 @@ ifeq (buildtag,$(firstword $(MAKECMDGOALS)))
   endif
   $(eval $(BUILDTAG_ARGS):;@:)
 endif
-
 # Extract tag arguments
+# Esta funcion define TAG_ARGS verificando que la primera
+# palabra sea 'tag'
+# Luego utilizamos wordlist para tomar cada palabra de MAKECMDGOALS que este despues
+# de la palabra 'tag'
 ifeq (tag,$(firstword $(MAKECMDGOALS)))
   TAG_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   ifeq ($(TAG_ARGS),)

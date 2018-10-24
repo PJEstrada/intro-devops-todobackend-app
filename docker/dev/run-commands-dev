@@ -1,0 +1,8 @@
+# Correr un Volume Container para mantener el cache.
+docker run -v /tmp/cache:cache --entrypoint true --name cache todobackend-dev
+
+# Correr la nueva imagen utilizando cache
+docker run --rm --volumes-from cache todobackend-dev
+
+# Correr la imagen de develop utilizando los settings de test de django.
+docker run --rm -e DJANGO_SETTINGS_MODULE=todobackend.settings.test --volumes-from cache todobackend-dev
